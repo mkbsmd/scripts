@@ -1,0 +1,185 @@
+
+###********************************************
+# Template Script: Notification Template
+# script is built to eventually run some command line function
+# The current functionality as is. 
+
+
+## CreateOutputLogFile: Accepts a file path into the fuction. Will check if it exists. If not then create 
+## Sendmail: Standalone basic email function. Require hard coding TO:, FROM:, SUBJECT:, BODY:, and SMTPServer
+## GenerateNotificationAndLogging: Accepts 3 variables into the fucntion as CMDLETS. Will generate color coded cmdline notification based on notification level. 
+
+
+###********************************************
+
+
+
+### ____________________________________________________________________________
+### BEGIN FUNCTION DEFINITIONS 
+### ____________________________________________________________________________
+#
+function CreateOutputLogFile ([string]$filepath)
+{
+    GenerateNotificationAndLogging -var_outputdatetime $Output_DateTime -var_outputmessage  "Path and file to be created [$filepath]" -var_notificationlevel "Informational"
+    #If the file does not exist, create it.
+    if (-not(Test-Path -Path $filepath -PathType Leaf)) {
+            try 
+            {
+                $null = New-Item -ItemType File -Path $filepath -Force -ErrorAction Stop
+                GenerateNotificationAndLogging -var_outputdatetime $Output_DateTime -var_outputmessage "The file [] has been created." -var_notificationlevel "Informational"
+            }
+            catch 
+            {
+                GenerateNotificationAndLogging -var_outputdatetime $Output_DateTime -var_outputmessage $_.Exception.Message -var_notificationlevel "Error"
+                throw $_.Exception.Message 
+            }
+        }
+    # If the file already exists, show the message and do nothing.
+        else 
+        {
+           GenerateNotificationAndLogging -var_outputdatetime $Output_DateTime -var_outputmessage  "File already exists." -var_notificationlevel "Informational"
+        }
+ }
+
+function SendMail ()
+{
+     $sendMailParams = @{
+        From = '<<EnterValid Email Address>>' 
+        To = '<<EnterValid Email Address>>'
+        Subject = 'some subject'
+        Body = 'some body'
+        SMTPServer = '<<SMTP address>>'
+        }
+
+    Send-MailMessage @sendMailParams -BodyAsHtml
+}
+
+
+
+ function GenerateNotificationAndLogging  {
+    [CmdletBinding()]
+    Param
+    (
+        [Parameter(Mandatory=$true, Position=0)]
+        $var_outputdatetime,
+
+        [Parameter(Mandatory=$true, Position=1)]
+        $var_outputmessage,
+
+        [Parameter(Mandatory=$true, Position=2)]
+        $var_notificationlevel
+    )
+    Try
+    {
+        $conditionalForegroundColor = ""
+
+        if ($var_notificationlevel -eq "Informational")
+        {
+            $conditionalForegroundColor = "Green"
+        }
+        Elseif ($var_notificationlevel -eq "Warning")
+        {
+            $conditionalForegroundColor = "Magenta"
+        }
+        Elseif ($var_notificationlevel -eq "Error")
+        {
+            $conditionalForegroundColor = "Red"
+        }
+        Else
+        {
+            $conditionalForegroundColor = "White"            
+        }
+
+
+        Write-Host  "$var_outputdatetime - [level]:$var_notificationlevel - [message]:$var_outputmessage" -ForegroundColor $conditionalForegroundColor 
+        Write-Output "$var_outputdatetime - [level]:$var_notificationlevel - [message]:$var_outputmessage"  >> $Output_Log_file_path 
+    }
+    Catch
+    {
+            $ErrorMessage = $_.Exception.Message +"while doing the addition"
+            Write-Host  "$var_outputdatetime - [level]:ERROR [caught] - [message]:$ErrorMessage" -ForegroundColor Red 
+            Write-Output "$var_outputdatetime - [level]:ERROR [caught] - [message]:$ErrorMessage"  >> $Output_Log_file_path
+    }
+ }
+
+
+### ____________________________________________________________________________ 
+### END FUNCTION DEFINITIONS 
+### ____________________________________________________________________________
+###*****************************************************************************
+
+### ____________________________________________________________________________ 
+### BEGIN VARIABLE DECLARATIONS 
+### ____________________________________________________________________________
+
+# Log file variables
+$Output_Date = Get-Date -format '-yyyy-MM-dd'
+$Output_DateTime = Get-Date -format 'yyyy-MM-dd-hhmmss'
+[string]$Output_Log_file_path = 'C:\<<ENTER VALID PATH >>' + $Output_Date + '.txt' 
+
+
+
+
+### ___________________________________________________________________________
+### END VARIABLES DECLARATIONS 
+### ___________________________________________________________________________
+
+
+###***************************************************************
+### BEGIN MAIN ***************************************************
+###***************************************************************
+
+Try
+{
+    GenerateNotificationAndLogging -var_outputdatetime $Output_DateTime -var_outputmessage "******** START SCRIPT ********" -var_notificationlevel "Informational"
+    CreateOutputLogFile ([string]$Output_Log_file_path)
+
+    #Write-Host -ForegroundColor yellow "Informational - Script started @ $Output_DateTime "
+    #Create log entry - Check file exists
+
+    Foreach($name in $HIDUU_FileNames)
+    {
+        #$name
+
+        GenerateNotificationAndLogging -var_outputdatetime $Output_DateTime -var_outputmessage "Start searching directory for files" -var_notificationlevel "Informational"
+       
+        if(Test-Path -Path "$HIDUU_UploadFilesPath\$name.txt" -PathType Leaf)
+        {
+            GenerateNotificationAndLogging -var_outputdatetime $Output_DateTime -var_outputmessage "File found [$HIDUU_UploadFilesPath\$name.txt]" -var_notificationlevel "Informational"
+
+
+            # RUN HIDDUU COMMAND
+            GenerateNotificationAndLogging -var_outputdatetime $Output_DateTime -var_outputmessage "Uploading [$HIDUU_UploadFilesPath\$name.txt]" -var_notificationlevel "Informational"
+            systeminfo | Out-File -Append -FilePath $Output_Log_file_path  
+            GenerateNotificationAndLogging -var_outputdatetime $Output_DateTime -var_outputmessage "Upload complete []" -var_notificationlevel "Informational"
+
+
+            #MOVE FILE TO ARCHIVE
+            GenerateNotificationAndLogging -var_outputdatetime $Output_DateTime -var_outputmessage "Move file to archive []" -var_notificationlevel "Informational"
+            Move-Item -Path "$HIDUU_UploadFilesPath\$name.txt" -Destination "$HIDUU_ArhiveFilesPath\$name.txt"
+            GenerateNotificationAndLogging -var_outputdatetime $Output_DateTime -var_outputmessage "File move complete []" -var_notificationlevel "Informational"
+
+            #RENAME FILE
+            GenerateNotificationAndLogging -var_outputdatetime $Output_DateTime -var_outputmessage "Rename file $name to  [_Archived_$name$Output_DateTime.txt]" -var_notificationlevel "Informational"
+            Rename-Item -Path "$HIDUU_ArhiveFilesPath\$name.txt" -NewName "$HIDUU_ArhiveFilesPath\_Archived_$name$Output_DateTime.txt"
+            GenerateNotificationAndLogging -var_outputdatetime $Output_DateTime -var_outputmessage "File renamed to [_Archived_$name$Output_DateTime.txt]" -var_notificationlevel "Informational"
+
+
+        }
+        ElseIf(-not (Test-Path -Path "$HIDUU_UploadFilesPath\$name.txt" -PathType Leaf))
+        {
+            GenerateNotificationAndLogging -var_outputdatetime $Output_DateTime -var_outputmessage "File NOT found [$HIDUU_UploadFilesPath\$name.txt]" -var_notificationlevel "Warning"
+        }        
+    }
+    GenerateNotificationAndLogging -var_outputdatetime $Output_DateTime -var_outputmessage "******** END SCRIPT ********" -var_notificationlevel "Informational"
+}
+
+Catch
+{
+
+    $ErrorMessage = $_.Exception.Message +"while doing the addition"
+    Write-Host  "$var_outputdatetime - [level]:ERROR [caught] - [message]:$ErrorMessage" -ForegroundColor Red 
+    Write-Output "$var_outputdatetime - [level]:ERROR [caught] - [message]:$ErrorMessage"  >> $Output_Log_file_path
+
+}
+
